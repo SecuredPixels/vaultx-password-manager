@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VaultX — Password Manager</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- LOCK SCREEN -->
+  <div id="lock-screen" class="screen active">
+    <div class="lock-bg"></div>
+    <div class="lock-container">
+      <div class="logo-block">
+        <div class="logo-icon">🔐</div>
+        <h1 class="logo-text">VaultX</h1>
+        <p class="logo-sub">Encrypted Password Manager</p>
+      </div>
+
+      <div id="setup-form" class="card" style="display:none">
+        <h2 class="card-title">Create Master Password</h2>
+        <p class="card-desc">This password encrypts your vault using AES-256-GCM. <strong>Never forget it — there's no recovery.</strong></p>
+        <div class="field-group">
+          <label>Master Password</label>
+          <div class="input-wrap">
+            <input type="password" id="setup-pass" placeholder="Enter master password" autocomplete="new-password" />
+            <button class="eye-btn" onclick="toggleVisibility('setup-pass', this)">👁</button>
+          </div>
+        </div>
+        <div class="field-group">
+          <label>Confirm Password</label>
+          <div class="input-wrap">
+            <input type="password" id="setup-confirm" placeholder="Confirm master password" autocomplete="new-password" />
+            <button class="eye-btn" onclick="toggleVisibility('setup-confirm', this)">👁</button>
+          </div>
+        </div>
+        <div id="strength-bar-wrap">
+          <div id="strength-bar"></div>
+          <span id="strength-label"></span>
+        </div>
+        <button class="btn-primary" onclick="setupVault()">Create Vault</button>
+        <p id="setup-error" class="error-msg"></p>
+      </div>
+
+      <div id="unlock-form" class="card" style="display:none">
+        <h2 class="card-title">Unlock Vault</h2>
+        <p class="card-desc">Enter your master password to decrypt and access your passwords.</p>
+        <div class="field-group">
+          <label>Master Password</label>
+          <div class="input-wrap">
+            <input type="password" id="unlock-pass" placeholder="Enter master password" autocomplete="current-password" />
+            <button class="eye-btn" onclick="toggleVisibility('unlock-pass', this)">👁</button>
+          </div>
+        </div>
+        <button class="btn-primary" onclick="unlockVault()">Unlock</button>
+        <button class="btn-ghost" onclick="confirmReset()">Reset Vault</button>
+        <p id="unlock-error" class="error-msg"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- VAULT SCREEN -->
+  <div id="vault-screen" class="screen">
+    <nav class="navbar">
+      <div class="nav-logo">🔐 VaultX</div>
+      <div class="nav-actions">
+        <span class="vault-status">● Unlocked</span>
+        <button class="btn-icon" title="Add Password" onclick="openModal()">＋ Add</button>
+        <button class="btn-icon" title="Lock Vault" onclick="lockVault()">🔒 Lock</button>
+      </div>
+    </nav>
+
+    <div class="vault-layout">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="search-input" placeholder="Search passwords..." oninput="filterEntries()" />
+        </div>
+        <div class="category-list">
+          <button class="cat-btn active" data-cat="all" onclick="filterByCategory(this)">All</button>
+          <button class="cat-btn" data-cat="Social" onclick="filterByCategory(this)">Social</button>
+          <button class="cat-btn" data-cat="Work" onclick="filterByCategory(this)">Work</button>
+          <button class="cat-btn" data-cat="Finance" onclick="filterByCategory(this)">Finance</button>
+          <button class="cat-btn" data-cat="Shopping" onclick="filterByCategory(this)">Shopping</button>
+          <button class="cat-btn" data-cat="Other" onclick="filterByCategory(this)">Other</button>
+        </div>
+        <div class="vault-stats">
+          <div class="stat"><span id="stat-total">0</span><small>Total</small></div>
+          <div class="stat"><span id="stat-weak">0</span><small>Weak</small></div>
+          <div class="stat"><span id="stat-reused">0</span><small>Reused</small></div>
+        </div>
+      </aside>
+
+      <!-- Main -->
+      <main class="vault-main">
+        <div class="vault-header">
+          <h2 id="vault-heading">All Passwords</h2>
+          <span id="entry-count" class="entry-count"></span>
+        </div>
+
+        <div id="entries-grid" class="entries-grid">
+          <!-- populated by JS -->
+        </div>
+
+        <div id="empty-state" class="empty-state" style="display:none">
+          <div class="empty-icon">🗝️</div>
+          <p>No passwords here yet.</p>
+          <button class="btn-primary" onclick="openModal()">Add Your First Password</button>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- ADD / EDIT MODAL -->
+  <div id="modal-overlay" class="modal-overlay" onclick="closeModalOutside(event)">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modal-title">Add Password</h3>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+
+      <div class="field-group">
+        <label>Site / App Name *</label>
+        <input type="text" id="f-name" placeholder="e.g. GitHub" />
+      </div>
+      <div class="field-group">
+        <label>URL</label>
+        <input type="url" id="f-url" placeholder="https://github.com" />
+      </div>
+      <div class="field-group">
+        <label>Username / Email *</label>
+        <input type="text" id="f-user" placeholder="you@example.com" autocomplete="off" />
+      </div>
+      <div class="field-group">
+        <label>Password *</label>
+        <div class="input-wrap">
+          <input type="password" id="f-pass" placeholder="Password" autocomplete="new-password" oninput="updateModalStrength()" />
+          <button class="eye-btn" onclick="toggleVisibility('f-pass', this)">👁</button>
+          <button class="gen-btn" onclick="generateAndFill()" title="Generate strong password">⚡</button>
+        </div>
+        <div id="modal-strength-wrap">
+          <div id="modal-strength-bar"></div>
+          <span id="modal-strength-label"></span>
+        </div>
+      </div>
+      <div class="field-group">
+        <label>Category</label>
+        <select id="f-cat">
+          <option>Other</option>
+          <option>Social</option>
+          <option>Work</option>
+          <option>Finance</option>
+          <option>Shopping</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>Notes</label>
+        <textarea id="f-notes" placeholder="Optional notes..." rows="2"></textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="saveEntry()">Save</button>
+      </div>
+      <p id="modal-error" class="error-msg"></p>
+    </div>
+  </div>
+
+  <!-- VIEW PASSWORD MODAL -->
+  <div id="view-overlay" class="modal-overlay" onclick="closeViewOutside(event)">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="view-title">Password Details</h3>
+        <button class="modal-close" onclick="closeView()">✕</button>
+      </div>
+      <div id="view-body" class="view-body"></div>
+      <div class="modal-actions">
+        <button class="btn-ghost" onclick="closeView()">Close</button>
+        <button class="btn-primary" id="view-edit-btn">Edit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GENERATOR MODAL -->
+  <div id="gen-overlay" class="modal-overlay" onclick="closeGenOutside(event)">
+    <div class="modal-box gen-modal">
+      <div class="modal-header">
+        <h3>Password Generator</h3>
+        <button class="modal-close" onclick="closeGen()">✕</button>
+      </div>
+      <div class="gen-display">
+        <span id="gen-output">Click Generate</span>
+        <button class="copy-btn" onclick="copyGenPassword()" title="Copy">📋</button>
+      </div>
+      <div class="gen-options">
+        <label>Length: <span id="len-label">16</span>
+          <input type="range" id="gen-length" min="8" max="64" value="16" oninput="updateLenLabel()" />
+        </label>
+        <label><input type="checkbox" id="gen-upper" checked /> Uppercase (A-Z)</label>
+        <label><input type="checkbox" id="gen-lower" checked /> Lowercase (a-z)</label>
+        <label><input type="checkbox" id="gen-num" checked /> Numbers (0-9)</label>
+        <label><input type="checkbox" id="gen-sym" checked /> Symbols (!@#$...)</label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-ghost" onclick="closeGen()">Close</button>
+        <button class="btn-primary" onclick="generatePassword()">Generate</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFIRM DIALOG -->
+  <div id="confirm-overlay" class="modal-overlay">
+    <div class="modal-box confirm-box">
+      <div class="confirm-icon">⚠️</div>
+      <h3 id="confirm-title">Are you sure?</h3>
+      <p id="confirm-msg"></p>
+      <div class="modal-actions">
+        <button class="btn-ghost" onclick="closeConfirm()">Cancel</button>
+        <button class="btn-danger" id="confirm-ok-btn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="crypto.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
